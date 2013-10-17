@@ -5,6 +5,8 @@
 #include "TTTIO.h"
 #include "AI.h"
 
+#define MAXSTR 512
+
 struct node * ntree = NULL;
 
 int main( int argc, char ** argv )
@@ -13,15 +15,35 @@ int main( int argc, char ** argv )
   board brdy;
   int move;
   int curr;
+  char line[MAXSTR];
+  char d;
+  /*  int move_first; */
 
-  curr = 0;
+  printf("Would you like to move first? (y/n)");
+  fgets( line, MAXSTR, stdin );
+  if( 1 != sscanf( line, "%c", &d ) )
+    {
+      curr = 1;
+    }
+  else
+    {
+      if( d == 'y' || d == 'Y' )
+	{
+	  curr = 1;
+	}
+      else
+	{
+	  curr = 0;
+	}
+    }
+
+  /*  move_first = curr; */
+
   //  clear( &brdx );
   //clear( &brdy );
   brdx = 0;
   brdy = 0;
 
-  printf("populating tree!");
-  
   ntree = malloc( sizeof *ntree );
   if( ntree == NULL )
     {
@@ -31,7 +53,8 @@ int main( int argc, char ** argv )
 
   while( 1 )
     {
-      print_board( brdx, brdy );
+      if( curr /* move_first */ )
+	print_board( brdx, brdy );
 
       /* testing AI */
       /*
@@ -76,9 +99,8 @@ int main( int argc, char ** argv )
 	  return 0;
 	}
 
-
-      printf("\nmoves made: %d\n", num_moves( brdx | brdy ) );
       curr ^= 1;
+      /*       move_first = 1; */
     }
   return 0;
 }
