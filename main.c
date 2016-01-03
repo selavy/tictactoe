@@ -17,16 +17,30 @@ struct board_t {
 #define IS_SET(board, bit) ((board) & (1 << (bit)))
 #define SET(board, bit) ((board) |= (1 << (bit)))
 
-/*
- X | X | X 
------------
- O | O | O
------------
- X | X | X
-*/
+#define FULLBOARD(board) (board.player1 | board.player2)
+#define WIN_I(player, mask) (((player) & (mask)) == (mask))
+#define IS_WIN(player) \
+    ( \
+    WIN_I(player, 0x54)  || \
+    WIN_I(player, 0x111) || \
+    WIN_I(player, 0x7)   || \
+    WIN_I(player, 0x38)  || \
+    WIN_I(player, 0x1c0) || \
+    WIN_I(player, 0x124) || \
+    WIN_I(player, 0x92)  || \
+    WIN_I(player, 0x49)     \
+    )
+#define CATSGAME(board) (FULLBOARD(board) == 0b111111111)
 
 void print_board(struct board_t board)
 {
+    /*
+     X | X | X 
+    -----------
+     O | O | O
+    -----------
+     X | X | X
+    */
     int i = 0;
     for (; i < 9; ++i) {
         if (IS_SET(board.player1, i)) {
@@ -59,7 +73,7 @@ int get_move(struct board_t board) {
     printf("Enter a move: ");
     ret = getline(&line, &n, stdin);
     if (ret < 1) {
-        printf("getline failed!\n");
+        exit(0);
         return -1;
     }
     else {
@@ -87,10 +101,9 @@ int main(int argc, char **argv)
 
     board.player1 = 0;
     board.player2 = 0;
-    turn = 0;
+    turn = 1;
 
-    for (i = 0; i < 2; ++i) {
-
+    for (i = 0; i < 9; ++i) {
         print_board(board);
 
         while ((move = get_move(board)) == -1) {
@@ -99,13 +112,26 @@ int main(int argc, char **argv)
 
         if (turn) {
             SET(board.player1, move);
+
+            if (IS_WIN(board.player1)) {
+                printf("Player #1 wins!\n");
+                break;
+            }
         }
         else {
             SET(board.player2, move);
+
+            if (IS_WIN(board.player2)) {
+                printf("Player #2 wins!\n");
+                break;
+            }
         }
 
         turn ^= 1;
 
+        if (CATSGAME(board)) {
+            printf("Cat's game!\n");
+        }
     }
 
     print_board(board);
