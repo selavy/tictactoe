@@ -32,6 +32,13 @@ struct board_t {
     WIN_I(player, 0x92)  || \
     WIN_I(player, 0x49)     \
     )
+
+typedef char boolean;
+#define TRUE 1
+#define FALSE 0
+#define MOVE_FIRST 1
+#define MOVE_SECOND 0
+
 /*
  ** Must check that !IS_WIN(board.player1) && !IS_WIN(board.player2) before
  ** calling CATSGAME(board) check
@@ -111,7 +118,7 @@ int *generate_moves(struct board_t board, int *generated) {
     return &(buffer[0]);
 }
 
-void create_child(struct board_t *cpy, struct board_t *board, int is_player1, int move) {
+void create_child(struct board_t *cpy, struct board_t *board, boolean is_player1, int move) {
     memcpy(cpy, board, sizeof(*board));
     if (is_player1) {
         SET(cpy->player1, move);
@@ -120,49 +127,34 @@ void create_child(struct board_t *cpy, struct board_t *board, int is_player1, in
     }
 }
 
-int alphabeta(struct board_t board, int is_player1, int depth, int alpha, int beta, char maximizing)
+int alphabeta(struct board_t board, boolean is_player1, int depth, int alpha, int beta, char maximizing, boolean player1_winner)
 {
     int v = 0;
     int i;
-    int *moves;
+    int *tmp;
+    int moves[BOARDSZ];
     int poss;
     int score;
     struct board_t cpy;
-    
-    if (depth == 0) {
-        //TODO(plesslie): evaluate position
-        return 0;
-    }
-    else if (IS_WIN(board.player1)) {
-        /* DEBUG */
-        printf("Found win for player1!\n");
-        print_board(board);
-        /* GUBED */
-        return is_player1 ? 1 : -1;
-    }
-    else if (IS_WIN(board.player2)) {
-        /* DEBUG */
-        printf("Found win for player2!\n");
-        print_board(board);
-        /* GUBED */
-        return is_player1 ? -1 : 1;
+
+    if (IS_WIN(board.player1)) {
+        return player1_winner ? 1 : -1;
+    } else if (IS_WIN(board.player2)) {
+        return player1_winner ? -1 : 1;
     }
     else if (CATSGAME(board)) {
-        /* DEBUG */
-        printf("Found cats game!\n");
-        print_board(board);
-        /* GUBED */
         return 0;
     }
 
-    moves = generate_moves(board, &poss);
+    tmp = generate_moves(board, &poss);
+    memcpy(&(moves[0]), tmp, sizeof(int) * poss);
     assert(poss > 0);
 
     if (maximizing) {
         v = -1000;
         for (i = 0; i < poss; ++i) {
-            create_child(&cpy, &board, is_player1, moves[i]);
-            score = alphabeta(cpy, is_player1 ^ 1, depth - 1, alpha, beta, 0);
+            create_child(&cpy, &board, is_player1 ^ TRUE, moves[i]);
+            score = alphabeta(cpy, is_player1 ^ TRUE, depth + 1, alpha, beta, FALSE, player1_winner);
             v = score > v ? score : v;
             alpha = alpha > v ? alpha : v;
             if (beta <= alpha) {
@@ -173,11 +165,11 @@ int alphabeta(struct board_t board, int is_player1, int depth, int alpha, int be
     else {
         v = 1000;
         for (i = 0; i < poss; ++i) {
-            create_child(&cpy, &board, is_player1, moves[i]);
-            score = alphabeta(cpy, is_player1 ^ 1, depth - 1, alpha, beta, 1);
+            create_child(&cpy, &board, is_player1 ^ TRUE, moves[i]);
+            score = alphabeta(cpy, is_player1 ^ TRUE, depth + 1, alpha, beta, TRUE, player1_winner);
             v = score < v ? score : v;
             beta = v < beta ? v : beta;
-            if (beta < alpha) {
+            if (beta <= alpha) {
                 break;
             }
         }
@@ -187,8 +179,9 @@ int alphabeta(struct board_t board, int is_player1, int depth, int alpha, int be
 }
 
 
-int choose_move(struct board_t board, char is_player1) {
-    int *moves;
+int choose_move(struct board_t board, boolean is_player1) {
+    int moves[BOARDSZ];
+    int *tmp;
     int poss;
     int best;
     int move;
@@ -196,33 +189,29 @@ int choose_move(struct board_t board, char is_player1) {
     int score;
     struct board_t cpy;
 
-    moves = generate_moves(board, &poss);
+    tmp = generate_moves(board, &poss);
+    memcpy(&(moves[0]), tmp, sizeof(int) * poss);
     assert(poss > 0);
 
-    best = 0;
+    best = -1;
     move = moves[0];
-
     for (i = 0; i < poss; ++i) {
         create_child(&cpy, &board, is_player1, moves[i]);
-        score = alphabeta(cpy, is_player1, 9, -10000, 10000, 1);
+        score = alphabeta(cpy, is_player1, 0, -1000, 1000, FALSE, is_player1);
         if (score > best) {
             best = score;
             move = moves[i];
         }
     }
-
-    /* DEBUG */
-    printf("Best move's score was: %d\n", score);
-    /* GUBED */
     return move;
 }
 
 /* get_human_player_choice(): ask if the player would like to move first
- ** 1  => human moves first
- ** 0  => ai moves first
- ** -1 => error
+ ** MOVE_FIRST   => human moves first
+ ** MOVE_SECOND  => ai moves first
+ ** -1           => error
  */
-int get_human_player_choice() {
+char get_human_player_choice() {
     char* line = 0;
     size_t n = 0;
     int ret;
@@ -232,14 +221,14 @@ int get_human_player_choice() {
         return -1;
     }
     else if (line[0] == 'y' || line[0] == 'Y') {
-        return 1;
+        return MOVE_FIRST;
     }
     else {
-        return 0;
+        return MOVE_SECOND;
     }
 }
 
-int get_move(struct board_t board, int human_player, int turn) {
+int get_move(struct board_t board, boolean human_player, boolean turn) {
     int move;
     if (human_player == turn) {    
         while ((move = ask_for_move(board)) == -1) {
@@ -247,7 +236,7 @@ int get_move(struct board_t board, int human_player, int turn) {
         }
     }
     else {
-        move = choose_move(board, human_player != 1);
+        move = choose_move(board, human_player != MOVE_FIRST);
     }
     return move;
 }
@@ -256,25 +245,24 @@ int main(int argc, char **argv)
 {
     struct board_t board;
     int move;
-    int turn;
     int i;
-    int human_player;
+    boolean turn;
+    boolean human_player;
 
     board.player1 = 0;
     board.player2 = 0;
-    turn = 1;
+    turn = TRUE;
 
     human_player = get_human_player_choice();
     if (human_player == -1) {
         exit(0);
     }
 
-    for (i = 0; i < 9; ++i) {
+    for (i = 0; i < BOARDSZ; ++i) {
         print_board(board);
         if (turn) {
             move = get_move(board, human_player, turn);
             SET(board.player1, move);
-
             if (IS_WIN(board.player1)) {
                 printf("Player #1 wins!\n");
                 break;
@@ -283,13 +271,12 @@ int main(int argc, char **argv)
         else {
             move = get_move(board, human_player, turn);
             SET(board.player2, move);
-
             if (IS_WIN(board.player2)) {
                 printf("Player #2 wins!\n");
                 break;
             }
         }
-        turn ^= 1;
+        turn ^= TRUE;
         if (CATSGAME(board)) {
             printf("Cat's game!\n");
         }
@@ -297,6 +284,7 @@ int main(int argc, char **argv)
 
     print_board(board);
     printf("Bye.\n");
+
 
     return 0;
 }
